@@ -1,21 +1,17 @@
-"""sp_analyzer2 URL Configuration
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/4.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path
+from myapp import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', views.home),
+    path('api/get_trade_data.json', views.get_trade_data),
+    path('api/get_brand_list.json', views.get_brand_list),
+    path('api/analyze', views.analyze),
+    path('api/get_trades_from_stooq', views.get_trades_from_stooq),
+    path('api/get_brands_from_tse', views.get_brands_from_tse),
+    path('api/check_stooq', views.check_stooq),
+    path('api/check_stooq_df', views.check_stooq_df),
+    path('api/get_initial_brands_from_tse', views.get_initial_brands_from_tse),
+    path('api/get_initial_trades_from_csv', views.get_initial_trades_from_csv),
 ]

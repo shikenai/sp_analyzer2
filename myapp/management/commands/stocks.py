@@ -2,13 +2,14 @@ import datetime
 
 from django.core.management.base import BaseCommand
 import pandas as pd
-from sp_analyzer.settings import BASE_DIR
+from sp_analyzer2.settings import BASE_DIR
 from myapp.models import Brand, Trades
 import time
 import pandas_datareader.data as data
 import datetime as dt
 import os
 from django_pandas.io import read_frame
+import glob
 
 
 # ----------ここからシステム環境再構築時に使用するもの----------
@@ -25,7 +26,7 @@ def reg_brands_from_csv():
         model_inserts.append(Brand(
             nation=d["nation"],
             market=d["market"],
-            brand_name=d["brand_name"],
+            name=d["brand_name"],
             code=d["code"],
             division=d["division"],
             industry_code_1=d["industry_code_1"],
@@ -36,6 +37,71 @@ def reg_brands_from_csv():
             scale_division=d["scale_division"]
         ))
     Brand.objects.bulk_create(model_inserts)
+
+
+def get_initial_brands_from_tse():
+    df = pd.read_csv(BASE_DIR / "data/before_brand.csv")
+    df_records = df.to_dict(orient='records')
+    # 'コード', '銘柄名', '市場・商品区分', '33業種コード', '33業種区分',
+    # '17業種コード', '17業種区分', '規模コード', '規模区分'
+    # print(df_records)
+    model_inserts = []
+    for d in df_records:
+        model_inserts.append(Brand(
+            nation="jp",
+            market="東証一部",
+            name=d["銘柄名"],
+            code=d["コード"],
+            division=d["市場・商品区分"],
+            industry_code_1=d["17業種コード"],
+            industry_division_1=d["17業種区分"],
+            industry_code_2=d["33業種コード"],
+            industry_division_2=d["33業種区分"],
+            scale_code=d["規模コード"],
+            scale_division=d["規模区分"]
+        ))
+    Brand.objects.bulk_create(model_inserts)
+
+
+def get_initial_trades_from_csv():
+    print('get_initial_trades_from_stooq()')
+    n = 0
+    t1 = time.time()
+    all_files = os.path.join(BASE_DIR, 'data', 'trades', '*')
+    print(all_files)
+    files = glob.glob(all_files)
+    for f in files:
+        df = pd.read_csv(f, header=[0, 1])
+        df = df.swaplevel(axis=1).sort_index(axis=1)
+        df = df.reset_index(drop=True)
+        df_date = df[["Symbols"]].droplevel(0, axis=1).drop(0).rename(columns={"Attributes": "Date"})
+
+        df = df.drop("Symbols", axis=1)
+
+        model_inserts = []
+        list_brand = []
+        for i in df.columns:
+            if not i[0] in list_brand:
+                list_brand.append(i[0])
+                _df = pd.concat([df[i[0]].reset_index(drop=True), df_date], axis=1).drop(0)
+                _df = _df.dropna()
+                _df["Volume"] = _df["Volume"].round()
+                _df["Date"] = pd.to_datetime(_df["Date"])
+                df_records = _df.to_dict(orient='records')
+                _brand = Brand.objects.get(code=i[0].split(".")[0], nation=i[0].split(".")[1])
+                for d in df_records:
+                    model_inserts.append(Trades(
+                        brand=_brand,
+                        brand_code=i[0],
+                        Date=d["Date"],
+                        Open=d["Open"],
+                        Close=d["Close"],
+                        High=d["High"],
+                        Low=d["Low"],
+                        Volume=d["Volume"]
+                    ))
+        Trades.objects.bulk_create(model_inserts)
+    print(time.time() - t1)
 
 
 def reg_trades_from_csv():
@@ -115,7 +181,7 @@ def get_trades_from_stooq():
     # →全ての銘柄について、一律指定した日からデータ取得日までのデータを取得すれば良い
     # print("8888.jp" in get_target_brands("jp")[0])
     new_brands = get_target_brands('jp')[1]
-    _df = data.DataReader(new_brands, "stooq", dt.date(1990, 1,1), datetime.date.today())
+    _df = data.DataReader(new_brands, "stooq", dt.date(1990, 1, 1), datetime.date.today())
     register_from_stooq_use_multi_columns_df(_df)
     # ここはもう一括でstooqから取得すれば良いので楽
     print(time.time() - t1)
@@ -140,25 +206,24 @@ def register_from_stooq_use_multi_columns_df(_df_multi_columns):
     for brand in list_brand:
         # multi_columnだったdfから、指定した銘柄分のみを抽出し、インデックスを整理
         _df = df[brand].reset_index()
-        print(_df)
-        print(_df.dtypes)
-        print(_df.columns)
+        # print(_df)
+        # print(_df.dtypes)
+        # print(_df.columns)
         if 'index' in _df.columns:
             _df = _df.rename(columns={'index': 'Date'})
         # queryの実行回数を減らすために、銘柄のmodelを取得しておく
         _brand = Brand.objects.get(code=brand.split(".")[0], nation=brand.split(".")[1])
         df_records = _df.to_dict(orient='records')
         print(brand)
-        print(df_records)
+        # print(df_records)
 
         for d in df_records:
-
             print(d["Date"])
-            print(d["Open"])
-            print(d["Close"])
-            print(d["High"])
-            print(d["Low"])
-            print(d["Volume"])
+            # print(d["Open"])
+            # print(d["Close"])
+            # print(d["High"])
+            # print(d["Low"])
+            # print(d["Volume"])
             model_inserts.append(Trades(
                 # _brand = 先ほど取得しておいた銘柄のmodel
                 brand=_brand,
@@ -203,14 +268,16 @@ def get_target_brands(nation):
     brands_in_trades = list(Trades.objects.all().order_by("brand_code").distinct().values_list('brand_code', flat=True))
     print('done get target brands')
     return sort_out_2lists(list_csv_brand_str, brands_in_trades)[0], \
-        sort_out_2lists(list_csv_brand_str, brands_in_trades)[1], sort_out_2lists(list_csv_brand_str, brands_in_trades)[
-        2]
+           sort_out_2lists(list_csv_brand_str, brands_in_trades)[1], \
+           sort_out_2lists(list_csv_brand_str, brands_in_trades)[
+               2]
 
 
 # ----------ここまで日々の取引データ取得に関するもの----------
 
 # ----------ここから東証一部上場企業の銘柄データ取得に関するもの----------
 def get_tse_brands():
+    print('start get tse brands!')
     # 東証から銘柄データを取得し、before_brand.csvとして全体を格納。この際、登録されていない銘柄は一括登録する。
     # 毎月１回やればいいのかなぁと思うけど、そんなに大したことはしてないので、毎日日付変わった時点に実行すればヨシ
     url = "https://www.jpx.co.jp/markets/statistics-equities/misc/tvdivq0000001vg2-att/data_j.xls"
@@ -261,4 +328,4 @@ class Command(BaseCommand):
         elif options["first"] == "bbb":
             reg_trades_from_csv()
         elif options["first"] == "ccc":
-            get_trades_from_stooq()
+            get_initial_trades_from_csv()

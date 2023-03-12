@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from myapp.management.commands import stocks, drawer, analyzer
 from myapp.models import Trades, Brand
+
 from django_pandas.io import read_frame
 import pandas as pd
 import pandas_datareader.data as data
@@ -32,6 +33,7 @@ def get_brand_list(request):
 
 
 def home(request):
+    # return HttpResponse('asdasd')
     return redirect("http://localhost:5173/")
 
 
@@ -53,6 +55,17 @@ def check_stooq(request):
     df["Date2"] = df["Date"].astype(dtype="datetime")
     print(df)
     # print(data.DataReader("7203.jp", "stooq", dt.date(2023, 1, 1), dt.date(2023, 3, 3)))
+    return JsonResponse({"user": "taro"})
+
+
+def get_initial_brands_from_tse(request):
+    stocks.get_initial_brands_from_tse()
+    return JsonResponse({"user": "taro"})
+
+
+def get_initial_trades_from_csv(request):
+    print('get!')
+    stocks.get_initial_trades_from_csv()
     return JsonResponse({"user": "taro"})
 
 

@@ -1,8 +1,8 @@
-import math
+
 
 from django.core.management.base import BaseCommand
 import pandas as pd
-from sp_analyzer.settings import BASE_DIR
+from sp_analyzer2.settings import BASE_DIR
 from myapp.models import Brand, Trades
 import time
 from django_pandas.io import read_frame
@@ -141,7 +141,7 @@ def set_gdx(row, short, long, name):
     return row
 
 
-def analize(brand, cnt):
+def analyze(brand, cnt):
     _trades = Trades.objects.filter(brand_code=brand).order_by("Date")
     n = _trades.count()
     x = cnt
@@ -192,4 +192,4 @@ class Command(BaseCommand):
         parser.add_argument("first", type=str)
 
     def handle(self, *args, **options):
-        analize()
+        analyze()

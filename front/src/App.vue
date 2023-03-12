@@ -29,7 +29,7 @@ const switchGetTradeBox = () => {
   <div id="wrapper">
     <nav id="header">
       <ul>
-        <li><a href="api/analyze">analize</a></li>
+        <li><a href="api/analyze">analyze</a></li>
         <li><a href="">home</a></li>
         <li><a href="http://localhost:8000/admin/">管理サイト</a></li>
         <li><a href="" @click.prevent="switchToggleSearchBox">search切り替え</a></li>
