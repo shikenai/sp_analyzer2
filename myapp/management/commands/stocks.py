@@ -39,12 +39,33 @@ def reg_brands_from_csv():
     Brand.objects.bulk_create(model_inserts)
 
 
+def reg_trades_from_csv():
+    # システム環境再構築時に使うことを想定
+    # djangoで吐き出したcsvを新規プロジェクトに移築する時に使ってください
+    # とりあえず旧プロジェクトで吐き出したcsvをdataframeとして取得
+    df = pd.read_csv(BASE_DIR / "data/trade.csv")
+    # よくわからんけど、ググった結果、to_dict(orient='records')すれば良いらしい
+    de_records = df.to_dict(orient='records')
+    # あとでbulk_createする際に使用する空のリスト
+    model_inserts = []
+    for d in de_records:
+        model_inserts.append(Trades(
+            brand=Brand.objects.get(code=d["brand_code"].split(".")[0], nation=d["brand_code"].split(".")[1]),
+            brand_code=d["brand_code"],
+            Date=d["trade_date"],
+            Open=d["open_value"],
+            Close=d["close_value"],
+            High=d["high_value"],
+            Low=d["low_value"],
+            Volume=d["volume"]
+        ))
+    Trades.objects.bulk_create(model_inserts)
+
+
 def get_initial_brands_from_tse():
+    # 東証からダウンロードしてきた銘柄情報をそのまま登録するときに使うコード
     df = pd.read_csv(BASE_DIR / "data/before_brand.csv")
     df_records = df.to_dict(orient='records')
-    # 'コード', '銘柄名', '市場・商品区分', '33業種コード', '33業種区分',
-    # '17業種コード', '17業種区分', '規模コード', '規模区分'
-    # print(df_records)
     model_inserts = []
     for d in df_records:
         model_inserts.append(Brand(
@@ -64,6 +85,7 @@ def get_initial_brands_from_tse():
 
 
 def get_initial_trades_from_csv():
+    # google colabで取得してきた取引情報をcsvにした後に実行するコード
     print('get_initial_trades_from_stooq()')
     n = 0
     t1 = time.time()
@@ -104,39 +126,18 @@ def get_initial_trades_from_csv():
     print(time.time() - t1)
 
 
-def reg_trades_from_csv():
-    # システム環境再構築時に使うことを想定
-    # djangoで吐き出したcsvを新規プロジェクトに移築する時に使ってください
-    # とりあえず旧プロジェクトで吐き出したcsvをdataframeとして取得
-    df = pd.read_csv(BASE_DIR / "data/trade.csv")
-    # よくわからんけど、ググった結果、to_dict(orient='records')すれば良いらしい
-    de_records = df.to_dict(orient='records')
-    # あとでbulk_createする際に使用する空のリスト
-    model_inserts = []
-    for d in de_records:
-        model_inserts.append(Trades(
-            brand=Brand.objects.get(code=d["brand_code"].split(".")[0], nation=d["brand_code"].split(".")[1]),
-            brand_code=d["brand_code"],
-            Date=d["trade_date"],
-            Open=d["open_value"],
-            Close=d["close_value"],
-            High=d["high_value"],
-            Low=d["low_value"],
-            Volume=d["volume"]
-        ))
-    Trades.objects.bulk_create(model_inserts)
-
-
 # ----------ここまでシステム環境再構築時に使用するもの----------
 
 # ----------ここから日々の取引データ取得に関するもの----------
 def get_trades_from_stooq():
     print('from stppq')
+    target = "nikkei"
+    get_target_brands('jp', target)
     t1 = time.time()
     # パターン１　既にある程度の取引情報データを保有しているもの
     # get_target_brands("jp")[0] は、既にある程度の取引状況をデータとして保有しているもの
     # →各銘柄ごとの、取引最終日を取得し、その日以降のデータを取得する必要があるため、listで取得
-    owned_brands = get_target_brands('jp')[0]
+    owned_brands = get_target_brands('jp', target)[0]
     # 一旦、現在保有している全ての取引情報をdataframeにする
     print('aaa')
     df = read_frame(Trades.objects.all().order_by("Date"))
@@ -164,25 +165,17 @@ def get_trades_from_stooq():
                 print(last_date)
                 print(brand_code)
                 print(last_date + dt.timedelta(days=1))
-                _df = data.DataReader(brand_code, "stooq", last_date + dt.timedelta(days=1), datetime.date.today())
-                register_from_stooq_use_multi_columns_df(_df)
-                time.sleep(2)
-    # l = ['1808.jp', '1810.jp', '1811.jp', '1812.jp', '1813.jp', '1814.jp', '1815.jp', '1820.jp', '1821.jp', '1822.jp',
-    #      '1826.jp', '1827.jp', '1828.jp', '1833.jp', '1835.jp', '1840.jp', '1844.jp', '1847.jp', '1848.jp', '1850.jp',
-    #      '1852.jp', '1853.jp', '1860.jp', '1866.jp', '1867.jp', '1870.jp', '1871.jp', '1873.jp', '1878.jp', '1879.jp',
-    #      '1882.jp', '1884.jp', '1885.jp', '1887.jp', '1888.jp', '1890.jp', '1893.jp', '1897.jp', '1898.jp', '1899.jp',
-    #      '1904.jp', '1905.jp', '1909.jp', '1911.jp', '1914.jp', '1921.jp', '1925.jp', '1926.jp', '1928.jp', '1929.jp',
-    #      '1930.jp', '1934.jp', '1938.jp', '1939.jp', '1941.jp', '1942.jp', '1944.jp', '1992.jp', '2066.jp', '2070.jp',
-    #      '2647.jp', '2649.jp', '2795.jp', '2814.jp', '2850.jp']
-    # _df = data.DataReader(l, "stooq", dt.date(2023, 1, 21), dt.date.today())
-    # print(_df)
-    # register_from_stooq_use_multi_columns_df(_df)
-
+                print(returning_list)
+                if not len(returning_list) == 0:
+                    _df = data.DataReader(brand_code, "stooq", last_date + dt.timedelta(days=1), datetime.date.today())
+                    register_from_stooq_use_multi_columns_df(_df)
+                    time.sleep(2)
     # →全ての銘柄について、一律指定した日からデータ取得日までのデータを取得すれば良い
-    # print("8888.jp" in get_target_brands("jp")[0])
-    new_brands = get_target_brands('jp')[1]
-    _df = data.DataReader(new_brands, "stooq", dt.date(1990, 1, 1), datetime.date.today())
-    register_from_stooq_use_multi_columns_df(_df)
+    new_brands = get_target_brands('jp', target)[1]
+    print(new_brands)
+    if not len(new_brands) == 0:
+        _df = data.DataReader(new_brands, "stooq", dt.date(2018, 1, 1), datetime.date.today())
+        register_from_stooq_use_multi_columns_df(_df)
     # ここはもう一括でstooqから取得すれば良いので楽
     print(time.time() - t1)
 
@@ -191,7 +184,7 @@ def register_from_stooq_use_multi_columns_df(_df_multi_columns):
     # stooq-apiから、銘柄をリストで指定してデータを取得すると、
     # multi_columnになっていて使いづらそうだったので、使いやすい形に直す。
     # ついでに、一括登録しておくことにする。
-    print('reg!!!')
+    print('START reg multi')
     # まず、取得してきたdfのカラムを整理
     df = _df_multi_columns.swaplevel(0, 1, axis=1).sort_index(axis=1)
     # 取得してきたdfに存在する銘柄のコードを取得（"7203.jp"形式）してリスト化
@@ -206,24 +199,12 @@ def register_from_stooq_use_multi_columns_df(_df_multi_columns):
     for brand in list_brand:
         # multi_columnだったdfから、指定した銘柄分のみを抽出し、インデックスを整理
         _df = df[brand].reset_index()
-        # print(_df)
-        # print(_df.dtypes)
-        # print(_df.columns)
         if 'index' in _df.columns:
             _df = _df.rename(columns={'index': 'Date'})
         # queryの実行回数を減らすために、銘柄のmodelを取得しておく
         _brand = Brand.objects.get(code=brand.split(".")[0], nation=brand.split(".")[1])
         df_records = _df.to_dict(orient='records')
-        print(brand)
-        # print(df_records)
-
         for d in df_records:
-            print(d["Date"])
-            # print(d["Open"])
-            # print(d["Close"])
-            # print(d["High"])
-            # print(d["Low"])
-            # print(d["Volume"])
             model_inserts.append(Trades(
                 # _brand = 先ほど取得しておいた銘柄のmodel
                 brand=_brand,
@@ -238,6 +219,7 @@ def register_from_stooq_use_multi_columns_df(_df_multi_columns):
                 Volume=d["Volume"]
             ))
     Trades.objects.bulk_create(model_inserts)
+    print('DONE reg multi')
 
 
 def sort_out_2lists(list1, list2):
@@ -253,7 +235,7 @@ def sort_out_2lists(list1, list2):
     return intersection, only_list1, only_list2
 
 
-def get_target_brands(nation):
+def get_target_brands(nation, target):
     print('get target brands')
     # 取引情報を取得するにあたり、①既にある程度取引情報を持っている銘柄　②全く取引情報を持っていない銘柄　の２種類で
     # 処理方法を分ける必要があるため、①と②を分ける処理を行う。
@@ -262,11 +244,21 @@ def get_target_brands(nation):
     # なお、将来海外銘柄を取り扱う可能性を考慮し、引数としてnationをもつ。日本株の場合は一律"jp"
 
     # 最新の銘柄リスト
-    list_csv_brand = list(pd.read_csv(BASE_DIR / "data/before_brand.csv")["コード"])  # ここでは数値として取得しているみたい
+    if target == "nikkei":
+        print("nikkei")
+        list_csv_brand = list(pd.read_csv(BASE_DIR / "data/nikkei_listed_20230313_.csv")["0"])
+    elif target == "all":
+        print('all')
+        list_csv_brand = list(pd.read_csv(BASE_DIR / "data/before_brand.csv")["コード"])  # ここでは数値として取得しているみたい
     list_csv_brand_str = [str(c) + "." + nation for c in list_csv_brand]  # だから文字列に変換する
     # tradesに登録済の銘柄リスト
     brands_in_trades = list(Trades.objects.all().order_by("brand_code").distinct().values_list('brand_code', flat=True))
     print('done get target brands')
+    print(len(brands_in_trades))
+    # sort_out_2lists(list_csv_brand_str, brands_in_trades)[0]) は、list_csv_brand_strとbrands_in_tradesのどちらにも存在する銘柄
+    # sort_out_2lists(list_csv_brand_str, brands_in_trades)[1]) は、list_csv_brand_strにのみ存在する銘柄
+    # sort_out_2lists(list_csv_brand_str, brands_in_trades)[2]) は、brands_in_tradesにのみ存在する銘柄
+    print(len(sort_out_2lists(list_csv_brand_str, brands_in_trades)[2]))
     return sort_out_2lists(list_csv_brand_str, brands_in_trades)[0], \
            sort_out_2lists(list_csv_brand_str, brands_in_trades)[1], \
            sort_out_2lists(list_csv_brand_str, brands_in_trades)[

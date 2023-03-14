@@ -13,10 +13,22 @@ import json
 
 
 def analyze(request):
-    content = analyzer.analyze("1808.jp", 500)
-    return render(request, "test.html", context={
-        "content": content.to_html()
-    })
+    count_trades()
+    # content = analyzer.analyze("1808.jp", 500)
+    # return render(request, "test.html", context={
+    #     "content": content.to_html()
+    # })
+    return HttpResponse('hei')
+
+
+def count_trades():
+    print('count trades')
+    _trades = list(Trades.objects.values_list('brand_code', flat=True).distinct())
+    cnt_list = []
+    for i in range(len(_trades)):
+        print(_trades[i])
+        cnt_list.append(dict(brand=_trades[i], cnt=Trades.objects.filter(brand_code=_trades[i]).count()))
+        print(cnt_list)
 
 
 def get_trade_data(request):

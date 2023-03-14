@@ -31,7 +31,7 @@ const get_initial_trades_from_csv = ()=>{
       <a href="" class="btn" @click.prevent="get_brands_from_tse">Get Brands From TSE</a><br>
       <a href="" class="btn" @click.prevent="get_trades_from_stooq">Get Trades From STOOQ</a><br>
 <!--      <a href="" class="btn" @click.prevent="get_initial_brands_from_tse">get initial brands</a><br>-->
-      <a href="" class="btn" @click.prevent="get_initial_trades_from_csv">get initial trades from csv</a><br>
+<!--      <a href="" class="btn" @click.prevent="get_initial_trades_from_csv">get initial trades from csv</a><br>-->
     </div>
     <div class="drawing">
     </div>
