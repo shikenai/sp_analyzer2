@@ -1,5 +1,3 @@
-
-
 from django.core.management.base import BaseCommand
 import pandas as pd
 from sp_analyzer2.settings import BASE_DIR
@@ -23,10 +21,8 @@ def set_sanyaku(row):
     # set_ichimoku_cloud()後に使用するもの。終値が雲の上にあるのか下にあるのかを判定する
     if row["Close"] > row["leading_span1"] and row["Close"] > row["leading_span2"]:
         row["over_cloud"] = True
-    elif row["Close"] < row["leading_span1"] and row["Close"] < row["leading_span2"]:
-        row["over_cloud"] = False
     else:
-        row["sanyaku"] = None
+        row["over_cloud"] = False
     return row
 
 
@@ -142,6 +138,9 @@ def set_gdx(row, short, long, name):
 
 
 def analyze(brand, cnt):
+    pd.set_option('display.max_columns', None)
+    _brand = Brand.objects.get(code=brand.split(".")[0], nation=brand.split(".")[1])
+    division = _brand.industry_division_1
     _trades = Trades.objects.filter(brand_code=brand).order_by("Date")
     n = _trades.count()
     x = cnt
@@ -149,10 +148,12 @@ def analyze(brand, cnt):
         n_minus = 0
     else:
         n_minus = n - x
-    df = read_frame(_trades.all()[n_minus:n])
+    _df = read_frame(_trades.all()[n_minus:n])
     rate_yd = YenRate.objects.order_by("Date")
-    df_yd = read_frame(rate_yd.all()[n_minus:n])
-    print(df_yd)
+    df_yd = read_frame(rate_yd.all())
+    df = pd.merge(_df, df_yd, left_on='Date', right_on='Date', how='inner')
+    operate_single_column(df, 'rate', diff=True, diff_pct=True, ma_span=[3])
+    operate_single_column(df, 'Volume', diff=True, diff_pct=True, ma_span=[])
     # # Close列に対して、変化推移、変化率、３日移動平均、２５日移動平均を追加
     operate_single_column(df, "Close", diff=True, diff_pct=True, ma_span=[3, 25])
     operate_double_columns(df, "3MA_Close", "25MA_Close", size_comparison=True)
@@ -168,14 +169,17 @@ def analyze(brand, cnt):
     col_num = df.columns.get_loc('Close')
     n = 21
     index_num = df.shape[0]
+    division_list = []
     max_list = []
     for i in range(index_num):
+        division_list.append(division)
         if i + n <= index_num:
             max_list.append(df.iloc[i + 1:i + n, [col_num]].max().max())
         else:
             max_list.append(np.nan)
     column_name = "{}日後までの最大値".format(n)
     df[column_name] = max_list
+    df['division'] = division_list
     operate_double_columns(df, column_name, "Close", size_comparison_pct=True)
     # df = df[
     #     ['Date', 'Close', '3MA_Close', '25MA_Close', 'trend_by_MA', '3MA_3MA_Close_gt_25MA_Close', '21日後までの最大値',
@@ -184,8 +188,11 @@ def analyze(brand, cnt):
     #     columns={'Date': '日付', 'Close': '終値', '3MA_Close': '短期移動平均（３日）', '25MA_Close': '短期移動平均（25日）',
     #              'trend_by_MA': 'シグナル（移動平均）', '3MA_3MA_Close_gt_25MA_Close': 'シグナル（オリジナル）',
     #              '21日後までの最大値_/_Close_pct': '21日後までの最大値（伸び率）'})
-
-    return df.T
+    _last_df = df[["Date", "Close", "Volume", "diff_pct_3MA_Close_gt_25MA_Close", "rate", "diff_pct_rate", "trend_by_MA",
+                  "macd_hist_rate", "21日後までの最大値_/_Close_pct", "diff_pct_Volume", 'division', 'over_cloud']]
+    last_df = _last_df[7:_last_df.shape[0]-26]
+    return last_df.T
+    # return df.T
 
 
 class Command(BaseCommand):

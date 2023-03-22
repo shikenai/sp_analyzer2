@@ -14,7 +14,7 @@ import json
 
 def analyze(request):
     # count_trades()
-    content = analyzer.analyze("7203.jp", 100)
+    content = analyzer.analyze("7203.jp", 10000)
     return render(request, "test.html", context={
         "content": content.to_html()
     })
