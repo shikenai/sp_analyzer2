@@ -3,32 +3,42 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
 from myapp.management.commands import stocks, drawer, analyzer
 from myapp.models import Trades, Brand
-
+from sp_analyzer2.settings import BASE_DIR
 from django_pandas.io import read_frame
 import pandas as pd
 import pandas_datareader.data as data
 import datetime as dt
-
+import os
 import json
 
 
 def analyze(request):
-    count_trades()
-    # content = analyzer.analyze("1808.jp", 500)
-    # return render(request, "test.html", context={
-    #     "content": content.to_html()
-    # })
-    return HttpResponse('hei')
+    # count_trades()
+    content = analyzer.analyze("7203.jp", 100)
+    return render(request, "test.html", context={
+        "content": content.to_html()
+    })
 
 
 def count_trades():
     print('count trades')
-    _trades = list(Trades.objects.values_list('brand_code', flat=True).distinct())
-    cnt_list = []
-    for i in range(len(_trades)):
-        print(_trades[i])
-        cnt_list.append(dict(brand=_trades[i], cnt=Trades.objects.filter(brand_code=_trades[i]).count()))
-        print(cnt_list)
+    start_date = dt.date(2022, 3, 13)
+    _targets = list(pd.read_csv(BASE_DIR / "data/nikkei_listed_20230313_.csv")["0"])
+    targets = [str(t) + '.jp' for t in _targets]
+    print(analyzer.analyze('7203.jp', 10000))
+    # cnt_list = []
+    # print(targets)
+    # for i in range(len(targets)):
+    #     # print(_trades[i])
+    #     cnt_list.append(
+    #         dict(brand=targets[i], cnt=Trades.objects.filter(brand_code=targets[i], Date__gte=start_date).count()))
+    #     print(cnt_list)
+    # print(cnt_list)
+
+
+def getYD(request):
+    stocks.get_yd()
+    return JsonResponse({"user": "taro"})
 
 
 def get_trade_data(request):

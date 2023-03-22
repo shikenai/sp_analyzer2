@@ -23,6 +23,9 @@ const switchGetTradeBox = () => {
   toggleGetTradeBox.value = !toggleGetTradeBox.value
   toggleSearchBox.value = false
 }
+const getYD = () => {
+  axios.get('/api/getYD.json')
+}
 </script>
 
 <template>
@@ -34,6 +37,7 @@ const switchGetTradeBox = () => {
         <li><a href="http://localhost:8000/admin/">管理サイト</a></li>
         <li><a href="" @click.prevent="switchToggleSearchBox">search切り替え</a></li>
         <li><a href="" @click.prevent="switchGetTradeBox">GetTradeBox切り替え</a></li>
+        <li><a href="" @click.prevent="getYD">円相場取得</a></li>
       </ul>
     </nav>
     <div id="main">

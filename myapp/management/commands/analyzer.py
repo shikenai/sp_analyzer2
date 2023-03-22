@@ -3,7 +3,7 @@
 from django.core.management.base import BaseCommand
 import pandas as pd
 from sp_analyzer2.settings import BASE_DIR
-from myapp.models import Brand, Trades
+from myapp.models import Brand, Trades, YenRate
 import time
 from django_pandas.io import read_frame
 import datetime
@@ -150,6 +150,9 @@ def analyze(brand, cnt):
     else:
         n_minus = n - x
     df = read_frame(_trades.all()[n_minus:n])
+    rate_yd = YenRate.objects.order_by("Date")
+    df_yd = read_frame(rate_yd.all()[n_minus:n])
+    print(df_yd)
     # # Close列に対して、変化推移、変化率、３日移動平均、２５日移動平均を追加
     operate_single_column(df, "Close", diff=True, diff_pct=True, ma_span=[3, 25])
     operate_double_columns(df, "3MA_Close", "25MA_Close", size_comparison=True)

@@ -3,13 +3,15 @@ import datetime
 from django.core.management.base import BaseCommand
 import pandas as pd
 from sp_analyzer2.settings import BASE_DIR
-from myapp.models import Brand, Trades
+from myapp.models import Brand, Trades, YenRate
 import time
 import pandas_datareader.data as data
+import pandas_datareader as pdr
 import datetime as dt
 import os
 from django_pandas.io import read_frame
 import glob
+import yfinance as yf
 
 
 # ----------ここからシステム環境再構築時に使用するもの----------
@@ -307,6 +309,26 @@ def get_tse_brands():
 
 
 # ----------ここまで東証一部上場企業の銘柄データ取得に関するもの----------
+# ----------ここから円相場取得に関するもの----------
+def get_yd():
+    start = dt.date(2018, 3, 14)
+    end = dt.date(2023, 3, 13)
+    # YenRate.objects.all().delete()
+    df_yd = data.DataReader('DEXJPUS', 'fred', start, end)
+    df_yd = df_yd.reset_index()
+    df_yd['DEXJPUS'] = df_yd['DEXJPUS'].interpolate().round(2)
+    print(df_yd)
+    df_record = df_yd.to_dict(orient='records')
+    rate_model_insert = []
+    for d in df_record:
+        rate_model_insert.append(YenRate(
+            Date=d['DATE'],
+            rate=d['DEXJPUS']
+        ))
+    print(rate_model_insert)
+    # YenRate.objects.bulk_create(rate_model_insert)
+    print('DONE')
+
 
 class Command(BaseCommand):
     help = "register TSE brands"
