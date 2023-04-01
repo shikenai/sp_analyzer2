@@ -1,7 +1,7 @@
 import pandas
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, HttpResponse
-from myapp.management.commands import stocks, drawer, analyzer
+from myapp.management.commands import stocks, drawer, analyzer, analyzer_pycaret
 from myapp.models import Trades, Brand
 from sp_analyzer2.settings import BASE_DIR
 from django_pandas.io import read_frame
@@ -13,11 +13,31 @@ import json
 
 
 def analyze(request):
-    # count_trades()
-    content = analyzer.analyze("7203.jp", 10000)
+    _df = analyzer.preprocessing('7203.jp', 100)
+    list_columns = list(_df.columns)
+
+    df_brands = pd.read_csv(os.path.join(BASE_DIR, 'data', 'nikkei_listed_20230313_.csv'))
+    _list_brands = list(df_brands["0"].astype(str))
+    list_brands = [s + '.jp' for s in _list_brands]
+    # df = pd.DataFrame(index=[], columns=['Close', 'Volume', 'diff_pct_3MA_Close_gt_25MA_Close', 'rate',
+    #                                      'diff_pct_rate', 'trend_by_MA', 'macd_hist_rate', 'target',
+    #                                      'diff_pct_Volume', 'division', 'over_cloud', 'Upper_band', 'Lower_band',
+    #                                      'RSI'])
+    df = pd.DataFrame(index=[], columns=list_columns)
+    for brand in list_brands:
+        print(brand)
+        df = pd.concat([df, analyzer.preprocessing(brand, 10000)])
+    analyzer_pycaret.save_test(df, 'target', "all_trades_model_3days")
+    # df.to_csv(os.path.join(BASE_DIR, 'dataset', 'test3days.csv'),encoding='utf-8')
     return render(request, "test.html", context={
-        "content": content.to_html()
+        # "content": content.to_html()
     })
+
+
+def tuning(request):
+
+    analyzer_pycaret.tune_test()
+    return JsonResponse({"user": "taro"})
 
 
 def count_trades():

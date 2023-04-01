@@ -15,4 +15,5 @@ urlpatterns = [
     path('api/get_initial_brands_from_tse', views.get_initial_brands_from_tse),
     path('api/get_initial_trades_from_csv', views.get_initial_trades_from_csv),
     path('api/getYD.json', views.getYD),
+    path('api/tuning', views.tuning),
 ]

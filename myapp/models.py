@@ -1,6 +1,7 @@
 from django.db import models
 import datetime as dt
 
+
 class Brand(models.Model):
     nation = models.CharField(max_length=20, blank=True, null=True, verbose_name='国')
     market = models.CharField(max_length=20, blank=True, null=True)
@@ -43,4 +44,4 @@ class YenRate(models.Model):
     rate = models.FloatField(max_length=7, null=True, blank=True)
 
     def __str__(self):
-        return ' 円相場：' + str(self.rate) + '(' + self.Date.strftime('%Y/%m/%d') + ')'
+        return '円相場：' + str(self.rate) + '(' + self.Date.strftime('%Y/%m/%d') + ')'

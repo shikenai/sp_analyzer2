@@ -6,6 +6,7 @@ import time
 from django_pandas.io import read_frame
 import datetime
 import numpy as np
+from myapp.management.commands import analyzer_pycaret
 
 
 def set_sanyaku(row):
@@ -137,7 +138,7 @@ def set_gdx(row, short, long, name):
     return row
 
 
-def analyze(brand, cnt):
+def preprocessing(brand, cnt):
     pd.set_option('display.max_columns', None)
     _brand = Brand.objects.get(code=brand.split(".")[0], nation=brand.split(".")[1])
     division = _brand.industry_division_1
@@ -152,6 +153,8 @@ def analyze(brand, cnt):
     rate_yd = YenRate.objects.order_by("Date")
     df_yd = read_frame(rate_yd.all())
     df = pd.merge(_df, df_yd, left_on='Date', right_on='Date', how='inner')
+    df = df.drop(["id_x", "id_y", "brand", "brand_code"], axis=1)
+
     operate_single_column(df, 'rate', diff=True, diff_pct=True, ma_span=[3])
     operate_single_column(df, 'Volume', diff=True, diff_pct=True, ma_span=[])
     # # Close列に対して、変化推移、変化率、３日移動平均、２５日移動平均を追加
@@ -163,6 +166,11 @@ def analyze(brand, cnt):
     df = set_ichimoku_cloud(df)
     df = df.apply(set_sanyaku, axis=1)
     df = set_macd(df)
+    df = add_bb_rsi_sc(df)
+
+    # 三日分を分析させるときに使用①　（②もあるよ）
+    list_shift_num = [1, 2]
+    df = shift_and_rename_columns_name(df, list_shift_num)
 
     df = df[26:]
     df = df.reset_index(drop=True)
@@ -188,11 +196,56 @@ def analyze(brand, cnt):
     #     columns={'Date': '日付', 'Close': '終値', '3MA_Close': '短期移動平均（３日）', '25MA_Close': '短期移動平均（25日）',
     #              'trend_by_MA': 'シグナル（移動平均）', '3MA_3MA_Close_gt_25MA_Close': 'シグナル（オリジナル）',
     #              '21日後までの最大値_/_Close_pct': '21日後までの最大値（伸び率）'})
-    _last_df = df[["Date", "Close", "Volume", "diff_pct_3MA_Close_gt_25MA_Close", "rate", "diff_pct_rate", "trend_by_MA",
-                  "macd_hist_rate", "21日後までの最大値_/_Close_pct", "diff_pct_Volume", 'division', 'over_cloud']]
-    last_df = _last_df[7:_last_df.shape[0]-26]
-    return last_df.T
-    # return df.T
+
+    _target_index_list = ["Close", "Volume", "diff_pct_3MA_Close_gt_25MA_Close", "rate", "diff_pct_rate",
+                          "trend_by_MA", "macd_hist_rate", "21日後までの最大値_/_Close_pct", "diff_pct_Volume", 'division',
+                          'over_cloud', 'Upper_band', 'Lower_band', 'RSI']
+    target_index_list = _target_index_list
+
+    # 三日分を分析させるときに使用②　（①もあるよ）
+    remove_list = []
+    for num in list_shift_num:
+        new_list = [f'shift{str(num)}_{str(c)}' for c in _target_index_list]
+        target_index_list = target_index_list + new_list
+        remove_list.append(f'shift{str(num)}_21日後までの最大値_/_Close_pct')
+        remove_list.append(f'shift{str(num)}_division')
+    # remove_list = ['shift1_21日後までの最大値_/_Close_pct', 'shift2_21日後までの最大値_/_Close_pct', 'shift1_division', 'shift2_division']
+    for item in remove_list:
+        target_index_list.remove(item)
+
+    _last_df = df[target_index_list]
+    last_df = _last_df[7:_last_df.shape[0] - 26]
+    last_df.rename(columns={"21日後までの最大値_/_Close_pct": 'target'}, inplace=True)
+    # print(last_df.columns)
+    # analyzer_pycaret.save_test(last_df, "target")
+    # analyzer_pycaret.load_test(last_df)
+    return last_df
+
+
+def shift_and_rename_columns_name(df, list_shift_num):
+    old_columns = list(df.columns)
+    for num in list_shift_num:
+        new_columns = [f'shift{str(num)}_{str(c)}' for c in old_columns]
+        switch_columns = dict(zip(old_columns, new_columns))
+        shifted_df = df[old_columns].shift(num).rename(columns=switch_columns)
+        df = pd.concat([df, shifted_df], axis=1)
+    # print(merged_df)
+    return df
+
+
+def add_bb_rsi_sc(df, n_fast=12, n_slow=26, n_signal=9, n_std=2, n_rsi=14):
+    df['MA_slow'] = df['Close'].rolling(n_slow).mean()
+    df['Std'] = df['Close'].rolling(n_std).mean()
+    df['Upper_band'] = df["MA_slow"] + n_std * df['Std']
+    df['Upper_band'] = df['Upper_band'] / df['Close']
+    df['Lower_band'] = df["MA_slow"] - n_std * df['Std']
+    df['Lower_band'] = df['Lower_band'] / df['Close']
+    delta = df['Close'].diff()
+    up = delta.where(delta > 0, 0)
+    down = delta.where(delta < 0, 0)
+    df['RSI'] = up.rolling(n_rsi).mean() / (up.rolling(n_rsi).mean() + down.rolling(n_rsi).mean()) * 100
+
+    return df
 
 
 class Command(BaseCommand):
